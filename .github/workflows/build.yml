@@ -1,0 +1,117 @@
+name: Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Test
+        run: zig build test
+
+  build:
+    name: ${{ matrix.archive }}
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86-linux
+            cpu: baseline
+            os: ubuntu-latest
+            archive: mct-linux-x86.tar.gz
+
+          - target: x86_64-linux
+            cpu: baseline
+            os: ubuntu-latest
+            archive: mct-linux-x86_64.tar.gz
+
+          - target: x86-windows
+            cpu: baseline
+            os: windows-latest
+            archive: mct-windows-x86.zip
+
+          - target: x86_64-windows
+            cpu: baseline
+            os: windows-latest
+            archive: mct-windows-x86_64.zip
+
+          - target: aarch64-macos
+            cpu: baseline
+            os: macos-latest
+            archive: mct-macos-aarch64.tar.gz
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+          cache-key: ${{ matrix.os }}-0.16.0
+
+      - name: Build
+        run: zig build -Dtarget=${{ matrix.target }} -Dcpu=${{ matrix.cpu }} -Doptimize=ReleaseFast
+
+      - name: Package SDK Architecture (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p staging/bin
+
+          cp zig-out/bin/mct staging/bin/mct
+
+          chmod +x staging/bin/mct
+
+          mkdir dist
+          tar -czf dist/${{ matrix.archive }} -C staging .
+
+      - name: Package SDK Architecture (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path staging/bin
+
+          Copy-Item "zig-out/bin/mct.exe" -Destination "staging/bin/mct.exe"
+
+          New-Item -ItemType Directory -Force -Path dist
+          Compress-Archive -Path staging/* -DestinationPath "dist/${{ matrix.archive }}"
+
+      - name: Upload Packaged Asset
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.archive }}
+          path: dist/
+
+  release:
+    name: Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all compressed assets
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v3
+        with:
+          files: artifacts/*
+          generate_release_notes: true

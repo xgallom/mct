@@ -1,0 +1,12 @@
+.{
+    .name = .mct,
+    .version = "0.0.0",
+    .fingerprint = 0xa6f60c2084d252e2,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
