@@ -18,6 +18,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "mct", .module = mod },
         },
+        .link_libc = false,
     });
 
     const check = b.addExecutable(.{
